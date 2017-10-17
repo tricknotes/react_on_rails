@@ -9,7 +9,7 @@ require "yaml"
 require_relative "example_type"
 require_relative "task_helpers"
 include ReactOnRails::TaskHelpers
-namespace :examples do
+namespace :examples do # rubocop:disable Metrics/BlockLength
   # Loads data from examples_config.yml and instantiates corresponding ExampleType objects
   examples_config_file = File.expand_path("../examples_config.yml", __FILE__)
   examples_config = symbolize_keys(YAML.safe_load(File.read(examples_config_file)))
@@ -27,10 +27,11 @@ namespace :examples do
     desc "Generates #{example_type.name_pretty}"
     task example_type.gen_task_name_short => example_type.clobber_task_name do
       mkdir_p(example_type.dir)
-      modify_bundle_config(example_type.dir)
       sh_in_dir(examples_dir, "rails new #{example_type.name} #{example_type.rails_options}")
-      rm_rf(File.join(gem_root, ".bundle"))
       sh_in_dir(example_type.dir, "touch .gitignore")
+      sh_in_dir(example_type.dir, "rake webpacker:install")
+      sh_in_dir(example_type.dir, "bundle binstubs --path=#{example_type.dir}/bin webpacker")
+      sh_in_dir(example_type.dir, "rake webpacker:install:react")
       append_to_gemfile(example_type.gemfile, example_type.required_gems)
       bundle_install_in(example_type.dir)
       sh_in_dir(example_type.dir, example_type.generator_shell_commands)
@@ -58,15 +59,4 @@ def append_to_gemfile(gemfile, lines)
   old_text = File.read(gemfile)
   new_text = lines.reduce(old_text) { |a, e| a << "#{e}\n" }
   File.open(gemfile, "w") { |f| f.puts(new_text) }
-end
-
-def modify_bundle_config(example_dir)
-  config_dir = File.join(gem_root, ".bundle")
-  config = "#{config_dir}/config"
-  mkdir_p(config_dir)
-  File.open(config, "w") { |f| f.puts(config_text(example_dir))}
-end
-
-def config_text(example_dir)
-  "---\nBUNDLE_BIN: \"#{example_dir}/bin\""
 end
